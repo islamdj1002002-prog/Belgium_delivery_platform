@@ -1,17 +1,11 @@
-from pydantic import BaseModel
 from fastapi import FastAPI
-
-class ShipmentCreate(BaseModel):
-    tracking_number: str
-    destination: str
-
-
-class ShipmentStatusUpdate(BaseModel):
-    status: str
-
-
-class ShipmentUpdate(ShipmentCreate):
-    status: str
+from app.schemas import (
+    ShipmentUpdate,
+    ShipmentStatusUpdate,
+    ShipmentCreate, 
+    ShipmentResponse,
+    ShipmentBase
+)
 
 shipments = [
     {
@@ -32,7 +26,7 @@ app = FastAPI(title="Belgium Delivery API")
 
 
 
-@app.get("/shipments")
+@app.get("/shipments", response_model=list[ShipmentResponse])
 def get_shipments(destination: str = None, limit: int = 10):
     results = shipments
 
@@ -54,14 +48,15 @@ def get_shipment(shipment_id: int):
     return {"error": "Shipment not found"}
 
 
-@app.post("/shipments", status_code=201)
+@app.post("/shipments", response_model=ShipmentResponse, status_code=201)
 def create_ship(shipment: ShipmentCreate):
-    new_id = max(item["id"]for item in shipments) + 1
+    new_id = max(item["id"] for item in shipments) + 1
 
     new_shipment = {
         "id": new_id,
         "tracking_number": shipment.tracking_number,
         "destination": shipment.destination,
+        "status": "registered"
     }
 
     shipments.append(new_shipment)
