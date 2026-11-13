@@ -27,7 +27,7 @@ app = FastAPI(title="Belgium Delivery API")
 
 
 @app.get("/shipments", response_model=list[ShipmentResponse])
-def get_shipments(destination: str = None, limit: int = 10):
+async def get_shipments(destination: str = None, limit: int = 10):
     results = shipments
 
     if destination:
@@ -39,8 +39,8 @@ def get_shipments(destination: str = None, limit: int = 10):
     return results[:limit]
 
 
-@app.get("/shipment/{shipment_id}")
-def get_shipment(shipment_id: int):
+@app.get("/shipments/{shipment_id}")
+async def get_shipment(shipment_id: int):
     for shipment in shipments:
         if shipment["id"] == shipment_id:
             return shipment
@@ -49,7 +49,7 @@ def get_shipment(shipment_id: int):
 
 
 @app.post("/shipments", response_model=ShipmentResponse, status_code=201)
-def create_ship(shipment: ShipmentCreate):
+async def create_ship(shipment: ShipmentCreate):
     new_id = max(item["id"] for item in shipments) + 1
 
     new_shipment = {
@@ -63,7 +63,8 @@ def create_ship(shipment: ShipmentCreate):
     return new_shipment
 
 @app.get("/tracking/{tracking_number}")
-def tracking_shipment(tracking_number: str):
+async def tracking_shipment(tracking_number: str):
+
     for shipment in shipments:
         if shipment["tracking_number"] == tracking_number:
             return shipment
@@ -72,7 +73,7 @@ def tracking_shipment(tracking_number: str):
 
 
 @app.patch("/shipments/{shipment_id}/status")
-def update_shipment_status(shipment_id: int, update: ShipmentStatusUpdate):
+async def update_shipment_status(shipment_id: int, update: ShipmentStatusUpdate):
     for shipment in shipments:
         if shipment["id"] == shipment_id:
             shipment["status"] = update.status
@@ -83,7 +84,7 @@ def update_shipment_status(shipment_id: int, update: ShipmentStatusUpdate):
 
 
 @app.put("/shipments/{shipment_id}")
-def update_shipment(
+async def update_shipment(
     shipment_id: int,
     shipment_update: ShipmentUpdate
     ):
@@ -99,7 +100,7 @@ def update_shipment(
 
 
 @app.delete("/shipments/{shipment_id}")
-def delete_shipment(shipment_id: int):
+async def delete_shipment(shipment_id: int):
     for shipment in shipments:
         if shipment["id"] == shipment_id:
             shipments.remove(shipment)
