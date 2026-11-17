@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi import Depends
+from app.dependencies import get_current_user
 from app.schemas import (
     ShipmentUpdate,
     ShipmentStatusUpdate,
@@ -26,6 +28,12 @@ app = FastAPI(title="Belgium Delivery API")
 
 
 
+@app.get("/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    return user
+
+
+
 @app.get("/shipments", response_model=list[ShipmentResponse])
 async def get_shipments(destination: str = None, limit: int = 10):
     results = shipments
@@ -49,7 +57,7 @@ async def get_shipment(shipment_id: int):
 
 
 @app.post("/shipments", response_model=ShipmentResponse, status_code=201)
-async def create_ship(shipment: ShipmentCreate):
+async def create_ship(shipment: ShipmentCreate, current_user: dict = Depends(get_current_user)):
     new_id = max(item["id"] for item in shipments) + 1
 
     new_shipment = {
