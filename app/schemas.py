@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ShipmentBase(BaseModel):
@@ -43,4 +43,6 @@ class ShipmentStatusUpdate(BaseModel):
 
 class ShipmentResponse(ShipmentBase):
     id: int
-    status: str
+    status: str  
+
+    model_config = ConfigDict(from_attributes=True)

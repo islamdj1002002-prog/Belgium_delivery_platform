@@ -1,28 +1,25 @@
-from fastapi import FastAPI
-from fastapi import Depends
+from fastapi import FastAPI, HTTPException, Depends
 from app.dependencies import get_current_user
+from app.database import get_db
 from app.schemas import (
     ShipmentUpdate,
     ShipmentStatusUpdate,
     ShipmentCreate, 
     ShipmentResponse,
-    ShipmentBase
 )
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    )
+from app.crud import(
+    delete_shipment,
+    create_shipment,
+    get_shipment, 
+    get_shipments,
+    get_shipment_by_tracking_number,
+    update_shipment_status, 
+    update_shipment
+    ) 
 
-shipments = [
-    {
-        "id": 1, 
-        "tracking_number": "BE1001",
-        "status": "registered",
-        "destination": "Brussels",
-    },
-    {
-        "id": 2, 
-        "tracking_number": "BE1002",
-        "status": "registered",
-        "destination": "Antwerp",
-    },
-]
 
 app = FastAPI(title="Belgium Delivery API")
 
@@ -35,83 +32,112 @@ async def get_me(user: dict = Depends(get_current_user)):
 
 
 @app.get("/shipments", response_model=list[ShipmentResponse])
-async def get_shipments(destination: str = None, limit: int = 10):
-    results = shipments
+async def get_shipments_endpoint(
+    destination: str | None = None,
+    limit: int = 10,
+    skip: int = 0,
+    db: AsyncSession = Depends(get_db),
+    ):
 
-    if destination:
-        results = [
-            shipment for shipment in results
-            if shipment["destination"] == destination
-        ]
+    results = await get_shipments(
+    destination=destination,
+    limit=limit,
+    skip=skip,
+    db=db
+    )
 
-    return results[:limit]
+    return results
 
 
-@app.get("/shipments/{shipment_id}")
-async def get_shipment(shipment_id: int):
-    for shipment in shipments:
-        if shipment["id"] == shipment_id:
-            return shipment
-
-    return {"error": "Shipment not found"}
+@app.get("/shipments/{shipment_id}", response_model=ShipmentResponse)
+async def get_shipment_endpoint(shipment_id: int, db: AsyncSession = Depends(get_db)):
+    shipment = await get_shipment(db=db, shipment_id=shipment_id)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return shipment
 
 
 @app.post("/shipments", response_model=ShipmentResponse, status_code=201)
-async def create_ship(shipment: ShipmentCreate, current_user: dict = Depends(get_current_user)):
-    new_id = max(item["id"] for item in shipments) + 1
+async def create_ship(shipment: ShipmentCreate, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    new_shipment = await create_shipment(
+        db=db,
+        shipment=shipment
+        )
 
-    new_shipment = {
-        "id": new_id,
-        "tracking_number": shipment.tracking_number,
-        "destination": shipment.destination,
-        "status": "registered"
-    }
-
-    shipments.append(new_shipment)
     return new_shipment
 
-@app.get("/tracking/{tracking_number}")
-async def tracking_shipment(tracking_number: str):
+@app.get("/tracking/{tracking_number}", 
+        response_model=ShipmentResponse,
+        )
 
-    for shipment in shipments:
-        if shipment["tracking_number"] == tracking_number:
-            return shipment
-
-    return {"error": "Shipment not found"}   
-
-
-@app.patch("/shipments/{shipment_id}/status")
-async def update_shipment_status(shipment_id: int, update: ShipmentStatusUpdate):
-    for shipment in shipments:
-        if shipment["id"] == shipment_id:
-            shipment["status"] = update.status
-            return shipment
-
-    return {"error": "Shipment not found"}
-
-
-
-@app.put("/shipments/{shipment_id}")
-async def update_shipment(
-    shipment_id: int,
-    shipment_update: ShipmentUpdate
+async def tracking_shipment_endpoint(
+    tracking_number: str, 
+    db: AsyncSession = Depends(get_db),
     ):
-    for shipment in shipments:
-        if shipment["id"] == shipment_id:
-            shipment["tracking_number"] = shipment_update.tracking_number
-            shipment["status"] = shipment_update.status
-            shipment["destination"] = shipment_update.destination
-            return shipment
 
-    return {"error": "Shipment not found"}
+    shipment = await get_shipment_by_tracking_number(
+        db=db, 
+        tracking_number=tracking_number,
+        )
+    
+    if not shipment:
+        raise HTTPException(
+            status_code=404, 
+            detail="Shipment not found",
+            )
+    return shipment
+    
+
+
+@app.patch("/shipments/{shipment_id}/status", 
+        response_model=ShipmentResponse
+        )
+async def update_shipment_status_endpoint(
+    shipment_id: int, 
+    update: ShipmentStatusUpdate, 
+    db: AsyncSession = Depends(get_db)
+    ):
+
+    shipment = await update_shipment_status(
+        db=db, 
+        shipment_id=shipment_id, 
+        status=update.status,
+        )
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return shipment
+    
+
+
+
+
+@app.put("/shipments/{shipment_id}", 
+        response_model=ShipmentResponse,
+        )
+async def update_shipment_endpoint(
+    shipment_id: int,
+    shipment_update: ShipmentUpdate,
+    db: AsyncSession = Depends(get_db),
+    ):
+
+    shipment = await update_shipment(
+        db=db, 
+        shipment_id=shipment_id, 
+        update=shipment_update
+        )
+
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return shipment
+    
+
+    
             
 
 
 @app.delete("/shipments/{shipment_id}")
-async def delete_shipment(shipment_id: int):
-    for shipment in shipments:
-        if shipment["id"] == shipment_id:
-            shipments.remove(shipment)
-            return {"message": "Shipment deleted"}
-
-    return {"error": "Shipment not found"}
+async def delete_shipment_endpoint(shipment_id: int, db: AsyncSession = Depends(get_db)):
+    deleted = await delete_shipment(shipment_id=shipment_id, db=db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return {"message": "Shipment deleted"}
